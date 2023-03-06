@@ -1,11 +1,5 @@
-// programpic 테이블에 데이터를 입력하는 스크립트이다.
-// 프로그램명, 사진 링크 주소.
-// 이전 작업에서 사진 링크가 중복되는 문제가 있었다.
-// 이전에는 dbms 내에서 중복된 사진 링크를 제거하는 방법을 사용하였다.
-// 이전 방법을 사용해도 되지만, 노드 환경 안에서 전처리를 통해 중복을 제거할 수도 있을 것이다.
-
-// 주의점
-// c2테이블은 이후 PROGRAM 테이블로 이름이 변경되었다.
+// programprice 테이블에 데이터를 입력하는 스크립트이다.
+// programprice는 프로그램의 가격정보를 취합하는 테이블이다.
 
 // 절차
 // 1. 테이블 생성 *
@@ -13,21 +7,18 @@
 // 3. 데이터를 받아서 링크 주소로 이루어진 배열을 생성한다. *724개의 링크가 생성된 것을 확인하였다.
 // 3.1 생성된 배열의 내용을 바탕으로 크롤링을 진행한다. * 반복문 종료 조건에서 조금 애먹었다. undefiened로 반환되는 것을 확인했다.
 // 4. 반환해야 하는 데이터는 JSON 형식이며, 객체는 {프로그램 이름,링크} 순으로 작성되어야 한다.
-//  * [{
-//        programName: '[갑사] 주중 완전 자율, 휴식형',
-//       programPic: 'http://noms.templestay.com/images//RsImage/L_15078.png?timestamp=0'
-//    }]
-//  확인하였다.
 // 5. 반환된 객체를 인수로 삼은 뒤, 오라클 연결 => 파라미터 변환 =? 데이터 입력 => 오라클 연결 종료. *
 // 6. 깨달은 점과, 문제점, 개선할 방향을 정리한 뒤 마친다.
 
-// 테이블 생성 SQL
-// CREATE TABLE PROGRAMPIC (
-// 	P_NAME VARCHAR2(255),
-// 	P_PICLINK VARCHAR2(255)
-// )
+// 주의. 가격은 전처리를 통해 숫자로 만들어야 한다.
 
-// 중복 데이터를 제거해야 한다.
+// 테이블 생성 sql
+// CREATE TABLE programprice (
+// 	p_name varchar2(255),
+// 	division varchar2(255),
+// 	priceclass varchar2(255),
+// 	price number
+// )
 
 const {Builder, By, Key, until} = require('selenium-webdriver');
 const cheerio = require('cheerio');
@@ -92,34 +83,44 @@ async function getTempleUrlList(c2Data) {
 
 async function getProPicLinkData(programUrlList) {
     let driver = await new Builder().forBrowser('chrome').build();
-    let programPicList = []
+    let programPriceDataList = []
     let i;
     try {
         for (i = 0; i < programUrlList.length; i++) { // 테스트를 위해 반복은 2번만 실행한다. * programUrlList.length
             await driver.get(programUrlList[i]);
             let html = await driver.getPageSource();
             let $ = await cheerio.load(html);
-            await sleep(4000) // 이미지가 로드 될때까지 4초를 기다린다.
+            await sleep(1000) // 이미지가 로드 될때까지 4초를 기다린다.
+
 
             // 경로 선언부
             const programNamePath = "#main-area > div.page-name > h1";
-            // li:nth-child(1) > img" 에서 '(1)'의 번호를 바꾸면서 크롤링 해야 한다. 즉 반복문을 사용해야 한다.
+            const divisionPath = "#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(2) > td.work-title";
 
 
             // 전처리 부.
             let programName = $(programNamePath).text().trim();
+            let division = $(divisionPath).text().trim();
 
-            let j=1;
-            let programPicData = {};
-            while(true){
-                const programPicPath = `#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-left > div > div > div.bx-viewport > ul > li:nth-child(${j}) > img`
-                let programPicLink = $(programPicPath).attr('src')
-                if(programPicLink === undefined) break;
-                programPicData = {}
-                programPicData.programName = programName;
-                programPicData.programPicLink = programPicLink;
+            let j=2;
+            let programPriceData = {};
+            while (true){
+                // 반복! th:nth-child(2) 2부터 끝까지.
+                const priceclassPath = `#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(1) > th:nth-child(${j})`;
+                // 반복 ! td:nth-child(2) 2부터 끝까지.
+                const pricePath = `#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(2) > td:nth-child(${j})`;
 
-                programPicList.push(programPicData)
+                let priceClass = $(priceclassPath).text().trim();
+                let price = $(pricePath).text().trim().replace('\,','').replace('원','')
+                if(priceClass === '') break;
+                programPriceData = {};
+                programPriceData.p_name = programName
+                programPriceData.division = division
+                programPriceData.priceclass = priceClass
+                programPriceData.price = Number(price)
+
+                programPriceDataList.push(programPriceData)
+
                 j++
             }
         }
@@ -128,19 +129,23 @@ async function getProPicLinkData(programUrlList) {
     } finally {
         await driver.quit();
     }
-    return  programPicList;
+    return  programPriceDataList;
 }
 
-async function insertProPic (programPicList) {
+async function insertProPrice (programPriceDataList) {
     let conn;
-    const insertProPicSql = `insert into PROGRAMPIC (P_NAME , P_PICLINK) values (:1, :2)`;
+    const insertProPriceSql = `insert into programprice (p_name , division,priceclass,price) values (:1, :2, :3, :4)`;
 
     try{
         conn = await Oracle.makeConn();
 
-        for(let obj of programPicList) {
-            let params = [obj.programName, obj.programPicLink]
-            await conn.execute(insertProPicSql,params);
+        for(let obj of programPriceDataList) {
+            if(isNaN(obj.price)) {
+                console.log(obj.p_name)
+                obj.price = 0;
+            }
+            let params = [obj.p_name, obj.division, obj.priceclass, obj.price]
+            await conn.execute(insertProPriceSql,params);
         }
         await conn.commit();
     }catch(e){
@@ -152,4 +157,4 @@ async function insertProPic (programPicList) {
 }
 
 
-C2Data().then(getTempleUrlList).then(getProPicLinkData).then(insertProPic)
+C2Data().then(getTempleUrlList).then(getProPicLinkData).then(insertProPrice)
