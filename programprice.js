@@ -111,7 +111,7 @@ async function getProPicLinkData(programUrlList) {
                 const pricePath = `#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(2) > td:nth-child(${j})`;
 
                 let priceClass = $(priceclassPath).text().trim();
-                let price = $(pricePath).text().trim().replace('\,','').replace('원','')
+                let price = $(pricePath).text().trim().replaceAll('\,','').replace('원','')
                 if(priceClass === '') break;
                 programPriceData = {};
                 programPriceData.p_name = programName
