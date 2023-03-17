@@ -133,7 +133,7 @@ async function makeTempleURL (conn) {
     return {conn, URLList}
 }
 
-async function crwalingTwo (conn, URLList) {
+async function crwalingTwo (conn, URLList) { //사찰페이지의 정보 수집을 의미한다.
 
     for (let i = 0; i < 2; i++) { // URL을 반복하며 크롤링한다. 샘플로 일단 2개만
         console.log(`${i+1}번째 절입니다!`)
