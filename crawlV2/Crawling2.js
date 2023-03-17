@@ -3,8 +3,6 @@ const {Builder, Browser, until, By} = require("selenium-webdriver");
 let chrome = require("selenium-webdriver/chrome");
 const cheerio = require("cheerio");
 
-let chromeOptions = { args: [ '-–headless', '–allow-running-insecure-content', '–disable-logging' ] };
-
 // 연결, SQL 실행, 종료
 // 세부분으로 나누어져 있다.
 // 절차
@@ -51,14 +49,19 @@ async function createTable(conn) {
 
 async function crwalingOne (conn) {
     const URL = 'https://www.templestay.com/temple_search.aspx';
-
-    const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
+    const driver = await new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(new chrome.Options().headless().addArguments("–allow-running-insecure-content", "–disable-logging"))
+        .build();
 
     let T_NAMEs = [];
     let ADDRs = [];
     let TIDs = [];
 
     try {
+
+
+
         await driver.get(URL);
         await sleep(1000)
         for(let j=1; j<=8; j++){
@@ -136,7 +139,11 @@ async function crwalingTwo (conn, URLList) { //사찰페이지의 정보 수집�
 
     for (let i = 0; i < URLList.length; i++) { // URL을 반복하며 크롤링한다. 샘플로 일단 2개만
         console.log(`${i+1}번째 절입니다!`)
-        const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
+        const driver = await new Builder()
+            .forBrowser('chrome')
+            .setChromeOptions(new chrome.Options().headless().addArguments("–allow-running-insecure-content", "–disable-logging"))
+            .build();
+
         try{
             const url = URLList[i];
             const searchParams = new URLSearchParams(url.split('?')[1]);
@@ -169,13 +176,18 @@ async function crwalingTwo (conn, URLList) { //사찰페이지의 정보 수집�
             // TEMPLEPIC 테이블 요소 수집
             let preT_NAME = await $(`#content-top-area > div > h1`).text()
             let T_NAME = preT_NAME.trim()
-
             let j = 1
             let preT_PICTUREList =[];
             while(true) {
-                let preT_PICTURE = await $(`#bx-pager > a:nth-child(${j}) > img`).attr(`src`)
+                let preT_PICTURE = await $(`#tab1 > div.profileslider > div.slide > div > div.bx-viewport > ul > li:nth-child(${j}) > a > img`).attr(`src`)
                 let T_PICTURE = preT_PICTURE
                 if (T_PICTURE === undefined) break;
+                if (preT_PICTURE.includes("?")) {
+                    T_PICTURE = preT_PICTURE.replace(/\?.*/, "");
+                } else {
+                    T_PICTURE = preT_PICTURE;
+                }
+
                 preT_PICTUREList.push(T_PICTURE)
                 j++
             }
@@ -246,9 +258,14 @@ async function makeProgramURL (conn) {
 }
 
 async function crwalingThree(conn, ProgramURL) {
-    for (let i = 0; i < 2; i++) { // 시험을 위해 1번 반복
+    for (let i = 0; i < ProgramURL.length; i++) { // 시험을 위해 1번 반복
         console.log(`${i+1}번째 프로그램입니다!`)
-        const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
+
+        const driver = await new Builder()
+            .forBrowser('chrome')
+            .setChromeOptions(new chrome.Options().headless().addArguments("–allow-running-insecure-content", "–disable-logging"))
+            .build();
+
 
         try{
             const url = ProgramURL[i];
@@ -310,7 +327,7 @@ async function crwalingThree(conn, ProgramURL) {
             for(let o = 0; o < P_PICTUREList.length; o++) {
                 let programPicParam = [PID,T_NAME,P_NAME,P_PICTUREList[o]]
 
-                // await conn.query(insertPROGRAMPIC,programPicParam) // 일단 정지한다.
+                await conn.query(insertPROGRAMPIC,programPicParam) // 일단 정지한다.
             }
 
             // PROGRAMPRICE2 테이블 정보 수집
@@ -327,7 +344,7 @@ async function crwalingThree(conn, ProgramURL) {
 
                 // PRICE2 테이블 입력
                 let PRICEPARAM = [P_NAME, PID, DIVISION, PR_CLASS, PRICE]
-                // await conn.query(insertP_Price,PRICEPARAM)
+                await conn.query(insertP_Price,PRICEPARAM)
                 m++
             }
 
@@ -347,7 +364,7 @@ async function crwalingThree(conn, ProgramURL) {
                 P_CONTENT = null
 
                 let param = [P_NAME,PID,P_DAY,P_TIME,P_CONTENT]
-                // await conn.query(insertSql,param)
+                await conn.query(insertSql,param)
 
             } else {
                 // 일정이 하나 있는 경우
@@ -373,7 +390,7 @@ async function crwalingThree(conn, ProgramURL) {
                         if (P_TIME === '') break;
 
                         let param = [P_NAME,PID,P_DAY,P_TIME,P_CONTENT]
-                        // await conn.query(insertSql,param)
+                        await conn.query(insertSql,param)
                         r++
                     }
                     q = q + 2;
@@ -400,20 +417,21 @@ async function crwalingThree(conn, ProgramURL) {
             console.log(e)
         } finally {
             await driver.quit();
+
         }
 
 
     }
-
+    await CMariadb.closeConn(conn)
     return conn;
 
 }
 
 createConn()
-    // .then(conn => createTable(conn))
-    // .then((conn)=>crwalingOne(conn)).then(({conn, cOneParams}) =>insertCrawlOne(conn, cOneParams))
-    // .then(conn => makeTempleURL(conn)).then(({conn, URLList}) => crwalingTwo(conn, URLList))
+    .then(conn => createTable(conn))
+    .then((conn)=>crwalingOne(conn)).then(({conn, cOneParams}) =>insertCrawlOne(conn, cOneParams))
+    .then(conn => makeTempleURL(conn)).then(({conn, URLList}) => crwalingTwo(conn, URLList))
     .then(conn => makeProgramURL(conn)).then(({conn, ProgramURL}) => crwalingThree(conn, ProgramURL))
-    .catch(e => console.log(e)).then(conn => closeConn(conn))
+    .catch(e => console.log(e))
 
 
