@@ -3,6 +3,8 @@ const {Builder, Browser, until, By} = require("selenium-webdriver");
 let chrome = require("selenium-webdriver/chrome");
 const cheerio = require("cheerio");
 
+let chromeOptions = { args: [ '-–headless', '–allow-running-insecure-content', '–disable-logging' ] };
+
 // 연결, SQL 실행, 종료
 // 세부분으로 나누어져 있다.
 // 절차
@@ -50,7 +52,7 @@ async function createTable(conn) {
 async function crwalingOne (conn) {
     const URL = 'https://www.templestay.com/temple_search.aspx';
 
-    const driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build();
+    const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
 
     let T_NAMEs = [];
     let ADDRs = [];
@@ -134,7 +136,7 @@ async function crwalingTwo (conn, URLList) { //사찰페이지의 정보 수집�
 
     for (let i = 0; i < URLList.length; i++) { // URL을 반복하며 크롤링한다. 샘플로 일단 2개만
         console.log(`${i+1}번째 절입니다!`)
-        const driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build();
+        const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
         try{
             const url = URLList[i];
             const searchParams = new URLSearchParams(url.split('?')[1]);
@@ -246,7 +248,7 @@ async function makeProgramURL (conn) {
 async function crwalingThree(conn, ProgramURL) {
     for (let i = 0; i < 2; i++) { // 시험을 위해 1번 반복
         console.log(`${i+1}번째 프로그램입니다!`)
-        const driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build();
+        const driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
 
         try{
             const url = ProgramURL[i];
@@ -261,7 +263,6 @@ async function crwalingThree(conn, ProgramURL) {
             let $ = await cheerio.load(html);
 
             let PID = searchParams.get('ProgramId');
-
 
             // 수집 시작
             // PROGRAM2 테이블 업데이트. 데이터 수집
@@ -306,10 +307,92 @@ async function crwalingThree(conn, ProgramURL) {
 
             // PROGRAMPIC2 테이블 삽입
             let insertPROGRAMPIC = ` INSERT INTO PROGRAMPIC2 (PID, T_NAME, P_NAME, P_PICLINK) VALUES (?,?,?,?) `
-            for(let k = 0; k < P_PICTUREList.length; k++) {
-                let programPicParam = [PID,T_NAME,P_NAME,P_PICTUREList[k]]
+            for(let o = 0; o < P_PICTUREList.length; o++) {
+                let programPicParam = [PID,T_NAME,P_NAME,P_PICTUREList[o]]
 
                 // await conn.query(insertPROGRAMPIC,programPicParam) // 일단 정지한다.
+            }
+
+            // PROGRAMPRICE2 테이블 정보 수집
+            let preDIVISION = await $("#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(2) > td.work-title").text();
+            let DIVISION = preDIVISION.trim();
+
+            const insertP_Price = ` INSERT INTO PROGRAMPRICE2 (P_NAME, PID, DIVISION, PR_CLASS, PRICE) VALUES (?,?,?,?,?)`
+
+            let m = 2;
+            while (true){
+                let PR_CLASS = $(`#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(1) > th:nth-child(${m})`).text().trim();
+                let PRICE = $(`#main-area > div.page-content.clearfix > div.templeslides.clearfix > div.templeslides-right > div.templeslides-price.mobileonly.clearfix > table > tbody > tr:nth-child(2) > td:nth-child(${m})`).text().trim().replaceAll('\,','').replace('원','')
+                if(PR_CLASS === '') break;
+
+                // PRICE2 테이블 입력
+                let PRICEPARAM = [P_NAME, PID, DIVISION, PR_CLASS, PRICE]
+                // await conn.query(insertP_Price,PRICEPARAM)
+                m++
+            }
+
+            // PROGRAMSCHEDULE2 스케쥴 정보 수집
+            // eq메소드를 통해 값을 구할 수 있을 것 같다. 같이 없는 경우는 빈값으로 출력된다.
+            let date = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > h4`).eq(0).text().trim();
+
+            let insertSql = ` INSERT INTO PROGRAMSCHEDULE2 (P_NAME,PID,P_DAY,P_TIME,P_CONTENT) VALUES (?,?,?,?,?)`
+
+            let P_DAY;
+            let P_TIME;
+            let P_CONTENT;
+
+            if(date === '') {
+                P_DAY = null
+                P_TIME = null
+                P_CONTENT = null
+
+                let param = [P_NAME,PID,P_DAY,P_TIME,P_CONTENT]
+                // await conn.query(insertSql,param)
+
+            } else {
+                // 일정이 하나 있는 경우
+                // 일정이 하나 있는 경우와 하나 이상 있는 경우를 어떻게 구분할 것인가?
+                // eq메소드를 통해 값을 구할 수 있을 것 같다. 같이 없는 경우는 빈값으로 출력된다. 따라서 값이 빈값이 아니라면 1일차, 2일차... 빈값이 나올때까지 반복하면 될것이다.
+
+                let p = 0;
+                let q = 2;
+                let r = 2;
+                while (true) {
+                    P_DAY = $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > h4`).eq(p).text().trim();
+                    if (P_DAY === '') break;
+                    r = 2;
+                    P_TIME = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > table:nth-child(${q}) > tbody > tr:nth-child(${r}) > td.work-title`).text().trim()
+                    if (P_TIME === '') break;
+                    while (true) {
+
+                        // 이 안에선 eq()쓸 수 없다. eq()는 해당 path를 수집한 객체를 순서대로 반환한다. 현재 path로는 일차를 구분할 수 없다.
+
+                        P_TIME = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > table:nth-child(${q}) > tbody > tr:nth-child(${r}) > td.work-title`).text().trim()
+                        P_CONTENT = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > table:nth-child(${q}) > tbody > tr:nth-child(${r}) > td:nth-child(2)`).text().trim()
+
+                        if (P_TIME === '') break;
+
+                        let param = [P_NAME,PID,P_DAY,P_TIME,P_CONTENT]
+                        // await conn.query(insertSql,param)
+                        r++
+                    }
+                    q = q + 2;
+                    p++
+                }
+            }
+            // 1 4 7 / 2 5 8
+            // PROGRAMDES2 테이블 정보 수집 및 삽입.
+            const insertDES2 = ` INSERT INTO PROGRAMDES2 (P_NAME,PID,P_DES,P_DETAIL) VALUES (?,?,?,?)`
+            let t = 1
+            while(true) {
+                let P_DES = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > div > strong:nth-child(${t})`).text().trim()
+                let P_DETAIL = await $(`#main-area > div.page-content.clearfix > div.temple-description.clearfix > div > p:nth-child(${t+1})`).text().trim()
+
+                if(!P_DES) break;
+
+                let param = [P_NAME,PID,P_DES,P_DETAIL]
+                await conn.query(insertDES2,param)
+                t = t+3
             }
 
 
@@ -331,6 +414,6 @@ createConn()
     // .then((conn)=>crwalingOne(conn)).then(({conn, cOneParams}) =>insertCrawlOne(conn, cOneParams))
     // .then(conn => makeTempleURL(conn)).then(({conn, URLList}) => crwalingTwo(conn, URLList))
     .then(conn => makeProgramURL(conn)).then(({conn, ProgramURL}) => crwalingThree(conn, ProgramURL))
-    .catch(e => console.log(e)).finally(conn => closeConn(conn))
+    .catch(e => console.log(e)).then(conn => closeConn(conn))
 
 
