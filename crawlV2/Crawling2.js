@@ -31,14 +31,15 @@ async function closeConn(conn) {
 async function createTable(conn) {
 
     const TableSql = {
-        Temple : ` CREATE TABLE TEMPLE2 (T_NAME VARCHAR(255), TID VARCHAR(255), ADDR VARCHAR(255), T_COPY VARCHAR(255), T_DES TEXT, T_PHONE VARCHAR(255) ) `,
+        Temple : ` CREATE TABLE TEMPLE2 (T_NAME VARCHAR(255), TID VARCHAR(255), ADDR VARCHAR(255), REGION VARCHAR(255), T_COPY VARCHAR(255), T_DES TEXT, T_PHONE VARCHAR(255) ) `,
         Templepic : ` CREATE TABLE TEMPLEPIC2 (T_NAME VARCHAR(255), TID VARCHAR(255), T_PICTURE VARCHAR(255)) `,
         ProramLink : `CREATE TABLE PROGRAMLINK2 (PID VARCHAR(255), P_NAME VARCHAR(255), P_LINK VARCHAR(255) ,T_NAME VARCHAR(255), TID VARCHAR(255)) `,
         Program : ` CREATE TABLE PROGRAM2 (PID VARCHAR(255), P_NAME VARCHAR(255), T_NAME VARCHAR(255), P_CAUTION VARCHAR(255), P_CLASS VARCHAR(255),P_STRDATE DATE, P_ENDDATE DATE, P_INTRO TEXT, P_LINK VARCHAR(255))`,
         ProgramPic : ` CREATE TABLE PROGRAMPIC2 (PID VARCHAR(255), T_NAME VARCHAR(255), P_NAME VARCHAR(255), P_PICLINK VARCHAR(255)) `,
         ProgramPrice : ` CREATE TABLE PROGRAMPRICE2 (PR_NO INT AUTO_INCREMENT PRIMARY KEY, P_NAME VARCHAR(255), PID VARCHAR(255), DIVISION VARCHAR(255),PR_CLASS VARCHAR(255), PRICE INT)`,
         PROGRAMSCHEDULE : ` CREATE TABLE PROGRAMSCHEDULE2 (PS_NO INT AUTO_INCREMENT PRIMARY KEY, P_NAME VARCHAR(255), PID VARCHAR(255), P_DAY VARCHAR(255), P_TIME VARCHAR(255),P_CONTENT TEXT) `,
-        ProgramDes : ` CREATE TABLE PROGRAMDES2 (PD_NO INT AUTO_INCREMENT PRIMARY KEY, P_NAME VARCHAR(255),PID VARCHAR(255), P_DES VARCHAR(255), P_DETAIL TEXT) `
+        ProgramDes : ` CREATE TABLE PROGRAMDES2 (PD_NO INT AUTO_INCREMENT PRIMARY KEY, P_NAME VARCHAR(255),PID VARCHAR(255), P_DES VARCHAR(255), P_DETAIL TEXT) `,
+
     }
 
     for (let key in TableSql) {
@@ -99,6 +100,7 @@ async function crwalingOne (conn) {
         }
     } catch(e) {
         console.log(e);
+        await CMariadb.closeConn(conn)
     } finally {
         await driver.quit();
     }
@@ -111,6 +113,33 @@ async function crwalingOne (conn) {
 
 async function insertCrawlOne (conn,cOneParams) {
     let insertTemple = ` INSERT INTO TEMPLE2 (T_NAME,TID,ADDR) VALUES (?,?,?) `
+
+    // 이 sql은 임시로 이렇게 하긴 했지만 시간이 허락한다면 좀더 다듬을 것이다.
+    let updataTemple =[
+    `UPDATE TEMPLE2 SET REGION = '강원' WHERE ADDR LIKE '강원%'`,
+    `UPDATE TEMPLE2 SET REGION = '경기' WHERE ADDR LIKE '경기%'`,
+    `UPDATE TEMPLE2 SET REGION = '경남' WHERE ADDR LIKE '경상남도%'`,
+        `UPDATE TEMPLE2 SET REGION = '경북' WHERE ADDR LIKE '경상북도%'`,
+        `UPDATE TEMPLE2 SET REGION = '광주' WHERE ADDR LIKE '광주%'`,
+        `UPDATE TEMPLE2 SET REGION = '대구' WHERE ADDR LIKE '대구%'`,
+        `UPDATE TEMPLE2 SET REGION = '부산' WHERE ADDR LIKE '부산%'`,
+        `UPDATE TEMPLE2 SET REGION = '서울' WHERE ADDR LIKE '서울%'`,
+        `UPDATE TEMPLE2 SET REGION = '세종' WHERE ADDR LIKE '세종%'`,
+        `UPDATE TEMPLE2 SET REGION = '인천' WHERE ADDR LIKE '인천%'`,
+        `UPDATE TEMPLE2 SET REGION = '전남' WHERE ADDR LIKE '전남%'`,
+        `UPDATE TEMPLE2 SET REGION = '전남' WHERE ADDR LIKE '전라남도%'`,
+        `UPDATE TEMPLE2 SET REGION = '전북' WHERE ADDR LIKE '전라북도%'`,
+        `UPDATE TEMPLE2 SET REGION = '전북' WHERE ADDR LIKE '전북%'`,
+       `UPDATE TEMPLE2 SET REGION = '제주' WHERE ADDR LIKE '제주%'`,
+        `UPDATE TEMPLE2 SET REGION = '충남' WHERE ADDR LIKE '충남%'`,
+        `UPDATE TEMPLE2 SET REGION = '충남' WHERE ADDR LIKE '충청남도%'`,
+        `UPDATE TEMPLE2 SET REGION = '충북' WHERE ADDR LIKE '충청북도%'`,
+        `UPDATE TEMPLE2 SET REGION = '인천' WHERE ADDR LIKE '인천%'`
+]
+
+    for(let j =0; j < updataTemple.length; j++) {
+        await conn.query(updataTemple[j])
+    }
 
     let {T_NAMEs, ADDRs,TIDs} = cOneParams
 
@@ -237,6 +266,7 @@ async function crwalingTwo (conn, URLList) { //사찰페이지의 정보 수집�
 
         } catch (e) {
             console.log(e)
+            await CMariadb.closeConn(conn)
         } finally {
             await driver.quit();
         }
@@ -415,6 +445,7 @@ async function crwalingThree(conn, ProgramURL) {
 
         } catch (e) {
             console.log(e)
+            await CMariadb.closeConn(conn)
         } finally {
             await driver.quit();
 
