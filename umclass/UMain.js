@@ -51,7 +51,7 @@ async function crawlingMain(conn) {
     let CATEGORY = 0;
 
     for(let i = 1; i <= 2; i++) {
-        console.log(`${i} / 2 페이지`)
+        console.log(`${i} 페이지`)
         const URL = `https://www.umclass.com/class?page=${i}&category=0&classType=day`;
 
         try {
